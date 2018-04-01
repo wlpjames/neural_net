@@ -1,0 +1,370 @@
+
+#include "stdafx.h"
+#include <iostream>
+#include <stdlib.h>
+#include <stdio.h>
+#include<time.h>
+
+struct node {
+	float value = 0;
+	float weight[10]; //wieghts to send to next
+	float inherits[10]; // actually only needs 2
+};
+
+//global vals
+const int INPT = 2;
+const int LYR = 10;
+const int LYR2 = 10;
+const int OUT = 1;
+
+float input1 = 2.0;
+float input2 = 3.0;
+float sum = 5.0;
+
+const int pool = 10000;
+float results[pool];
+float w_matrix[pool][3][10][10];//attempts//layers//nodes//inherits
+float mutants[pool][3][10][10];
+const int pick = 100;
+int survivors[pick];
+int champion = 0;
+
+
+//lists of nodes for each layer
+node* input[INPT];
+node* layer[LYR];
+node* layer2[LYR2];
+node* output[OUT];
+
+//function declarations
+float run(float a, float b, int mem);
+int evaluate(void); // also print best and average. and range. // pessed array of results
+bool mutate(void); //and respawn. // pass the best from 
+float randVal(void);//returns random float between .0 and .2
+
+int main(void)
+{
+	srand(time(NULL));//sets seed for rand	
+	char responce = '0';
+	
+
+	for (int b = 0; b < pool; b++) //initiating random values in matrix
+	{
+		for (int k = 0; k < 3; k++) // for 2 layers + output
+		{
+			for (int i = 0; i < LYR; i++) // lyr == 10
+			{
+				for (int j = 0; j < LYR; j++) // lyr == 10
+				{
+					w_matrix[b][k][i][j] = randVal(); //random number between 0 & 1
+				}
+			}
+		}
+		results[b] = run(input1, input2, b) / 10; //divides by 200 to make a more managable number
+	}
+	if (evaluate() != 0)
+	{
+		std::cout << "error in evaluate function.";
+	}
+	do
+	{
+		char responce = '0';
+	
+		std::cout << "'h' for help or 'q' to quit\n"  << "inputs: "<< input1 << "," << input2  << ". sum : " << sum << "\n";
+		std::cin >> responce;
+		if (responce == '1')
+		{	
+			for (int i = 0; i < pool; i++)
+			{
+				results[i] = run(input1, input2, i) / 10;
+
+			}
+			if (evaluate() != 0)
+			{
+				std::cout << "error in evaluate function.";
+			}
+		}
+		else if (responce == '2')
+		{
+			mutate();
+		}
+		else if (responce == '3')
+		{
+			std::cout << " new value for input 1:";
+			std::cin >> input1;
+			std::cout << "\n new value for input 2:";
+			std::cin >> input2;
+			//std::cout << "\n sum of values:";
+			//std::cin >> sum;
+			std::cout << "\n";
+			sum = input1 + input2;
+		}
+		else if (responce == '4')
+		{
+			for (int j = 0; j < 10; j++)
+			{
+				for (int i = 0; i < pool; i++)
+				{
+					results[i] = run(input1, input2, i) / 10;
+				}
+				if (evaluate() != 0)
+				{
+					std::cout << "error in evaluate function.";
+				}
+				mutate();
+			}
+		}
+		else if (responce == '5') // run best scoreing.
+		{
+			float sing_result = run(input1, input2, champion) / 10;
+			std::cout << "champions answer :" << sing_result << "\n";
+
+		}
+		else if (responce == '6')//train on random inputs
+		{
+			std::cout << "generations of training :";
+			int gens = 0;
+			std::cin >> gens;
+			for (int j = 0; j < gens; j++)
+			{
+				input1 = rand() / (RAND_MAX/100);
+				input2 = rand() / (RAND_MAX /100);
+				sum = input1 + input2;
+				for (int i = 0; i < pool; i++)
+				{
+					results[i] = run(input1, input2, i) / 10;
+
+				}
+				if (evaluate() != 0)
+				{
+					std::cout << "error in evaluate function.";
+				}
+				mutate();
+				if (j % 1000 == 0)
+				{
+					std::cout << j;
+				}
+			}
+		}
+		else if (responce == 'h')
+		{
+			std::cout << "press '1' to re - run, '2' to mutate, '3' to change inputs, '4' for extended run, '5'to run the best from the last pool '6' to train on random inputs or 'q' to quit";
+		}
+		else if (responce == 'q')
+		{
+			for (int i = 0; i < 10; i++)// why up too 10
+			{
+				std::free(input[i]);
+				std::free(layer[i]);
+				std::free(layer2[i]);
+				std::free(output[i]);
+				return 0;
+			}
+		}
+	} while (responce != 'q');
+		
+
+	//std::cout << results[0] << "\n";
+	//function to mutate m_matrix
+	//
+	system("pause");
+	return 0;
+}
+
+float run(float a, float b, int mem) 
+{
+	for (int i = 0; i < 10; i++)// why up too 10
+	{
+		std::free(input[i]);
+		std::free(layer[i]);
+		std::free(layer2[i]);
+		std::free(output[i]);
+		input[i] = new node;
+		layer[i] = new node;
+		layer2[i] = new node;
+		output[i] = new node;
+	}
+
+	input[0]->value = a;
+	input[1]->value = b;
+
+	for (int i = 0; i < INPT; i++)
+	{
+		for (int j = 0; j < LYR; j++)
+		{
+			layer[j]->weight[i] = w_matrix[mem][0][j][i];
+			layer[j]->inherits[i] = input[i]->value;
+			//std::cout << layer[j]->weight[i];
+		}
+		for (int j = 0; j < LYR; j++)
+		{
+			layer[j]->value += (layer[j]->inherits[i] * layer[j]->weight[i]);
+		}
+	}
+
+	for (int i = 0; i < LYR; i++)//iterates through 10 nodes of last
+	{
+		for (int j = 0; j < LYR2; j++) // itarates through nodes of curr
+		{
+			layer2[j]->weight[i] = w_matrix[mem][1][j][i];
+			layer2[j]->inherits[i] = layer[i]->value;//i see
+		}
+		for (int j = 0; j < LYR2; j++)
+		{
+			layer2[j]->value += (layer2[j]->inherits[i] * layer2[j]->weight[i]);
+		}
+	}
+
+
+	for (int i = 0; i < LYR2; i++) 
+	{
+		for (int j = 0; j < OUT; j++)
+		{
+			output[j]->weight[i] = w_matrix[mem][2][j][i];
+			output[j]->inherits[i] = layer2[i]->value;
+			//std::cout << output[j]->weight[i];
+		}
+		for (int j = 0; j < LYR2; j++)// iterates though inherints
+		{
+			output[j]->value += (output[j]->inherits[i] * output[j]->weight[i]);
+		}
+		
+	}
+	
+
+	float result = output[0]->value;
+	return result;
+}
+
+int evaluate(void)//prints perforance of last group, picks 10 survivors.
+{
+	
+
+	//finds range + mean
+	float low = 100000;
+	float high = 0;
+	float mean = 0;
+	for (int i = 0; i < pool; i++)
+	{
+		if (results[i] < low)
+		{
+			low = results[i];
+		}
+		if (results[i] > high)
+		{
+			high = results[i];
+		}
+		mean += results[i];
+		//std::cout << results[i] << " ,";
+	}
+	mean = mean / pool;
+	float range = high - low;
+	//could here evaluate results depending on where are in range? would probably bias.
+
+	float fitness[pool];
+	//asigns fitness
+	for (int i = 0; i < pool; i++) //lowest == best
+	{
+		if (results[i] < sum)//makes all anwers possitive.
+		{
+			fitness[i] = (sum - results[i]);
+		}
+		else
+		{
+			fitness[i] = (results[i] - sum);
+		}
+	}
+
+	std::cout << "\n mean:" << mean << "\n range_high:" << high << "\n range_low:" << low << "\n span =:" << range << "\n";
+
+
+	//finds 10 highest
+	//list of fitness
+	float buffer = 10000;
+	for (int i = 0; i < pool; i++) //finds best.
+	{
+		if (fitness[i] < buffer)
+		{
+			buffer = fitness[i];//givest first lowest. 
+			champion = i;
+		}
+	}
+	
+
+	for (int j = 0; j < pick; j++)
+	{
+		buffer = 10000;
+		for (int i = 0; i < pool; i++) //finds 10 highest
+		{
+			if (fitness[i] < buffer)
+			{
+				buffer = fitness[i];//givest first lowest.
+				fitness[i] = 10000; //btw this is bad as is makes results unusable
+				survivors[j] = i;
+			}
+		}
+	}
+	return 0;
+}
+
+bool mutate(void)//takes W_matrix, survivors, destroys others, mutats
+{
+	//creates array of x mutations
+	
+	for (int b = 0; b < pick; b++) //initiating random values in matrix
+	{
+		for (int k = 0; k < 3; k++) // for 2 layers + output
+		{
+			for (int i = 0; i < LYR; i++) // lyr == 10
+			{
+				for (int j = 0; j < LYR; j++) // lyr == 10
+				{
+					mutants[b*(pool/pick)][k][i][j] = w_matrix[survivors[b]][k][i][j];
+				}
+			}
+		}
+		//mutates ith survaivor
+		for (int x = 1; x < (pool/pick); x++) // x = 1 to account for b = 10
+		{
+			for (int k = 0; k < 3; k++) // for 2 layers + output
+			{
+				for (int i = 0; i < 10; i++) // nodes
+				{
+					for (int j = 0; j < 10; j++) // weights
+					{
+						float coin = randVal();
+						if (coin < .2)
+						{
+							mutants[x + b * (pool/pick)][k][i][j] = mutants[b * (pool/pick)][k][i][j] + ((randVal() - 0.5)/1000); //should give low positive and negative values.
+							//std::cout << mutants[x + b * 10][k][i][j] << ' ';
+						}
+						else
+						{
+							mutants[x + b * (pool/pick)][k][i][j] = mutants[b * (pool/pick)][k][i][j];
+						}
+					}
+				}
+			}
+		}
+	}
+	//copys them into ith*10 aray of wMatrix
+	for (int b = 0; b < pool; b++) //iterating random values in matrix
+	{
+		for (int k = 0; k < 3; k++) // for 2 layers + output
+		{
+			for (int i = 0; i < LYR; i++) // lyr == 10
+			{
+				for (int j = 0; j < LYR; j++) // lyr == 10
+				{
+					w_matrix[b][k][i][j] = mutants[b][k][i][j];
+				}
+			}
+		}
+	}
+	return true;
+
+}
+float randVal(void)
+{
+	return (((float)rand()) / RAND_MAX);
+}
